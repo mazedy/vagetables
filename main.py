@@ -3,7 +3,7 @@ Memory-optimized Image Classification API using MobileNet and Lazy Zero-Shot CLI
 """
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from transformers import pipeline
 from PIL import Image
@@ -39,6 +39,22 @@ VEGETABLE_LABELS: List[str] = [
     "kale", "bok choy", "okra", "pumpkin", "butternut squash", "peas", "green beans",
     "asparagus", "radish", "beet", "beetroot", "ginger", "corn", "maize"
 ]
+
+# --- Root endpoint ---
+@app.get("/")
+async def root():
+    return {
+        "message": "Vegetable Classification API", 
+        "status": "running",
+        "version": "1.0.0",
+        "endpoints": {
+            "docs": "/docs",
+            "health": "/health",
+            "classify": "/classify",
+            "classify_top": "/classify-top",
+            "detect": "/detect"
+        }
+    }
 
 # --- Startup: Load lightweight MobileNet only ---
 @app.on_event("startup")
@@ -86,21 +102,25 @@ async def classify_image(file: UploadFile = File(...)):
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image.")
     
-    image = prepare_image(await file.read())
-    predictions = classifier(image)
-    
-    return {
-        "success": True,
-        "filename": file.filename,
-        "predictions": [
-            {"label": p["label"], "confidence": round(p["score"] * 100, 2)}
-            for p in predictions
-        ],
-        "top_prediction": {
-            "label": predictions[0]["label"],
-            "confidence": round(predictions[0]["score"] * 100, 2)
+    try:
+        image_data = await file.read()
+        image = prepare_image(image_data)
+        predictions = classifier(image)
+        
+        return {
+            "success": True,
+            "filename": file.filename,
+            "predictions": [
+                {"label": p["label"], "confidence": round(p["score"] * 100, 2)}
+                for p in predictions
+            ],
+            "top_prediction": {
+                "label": predictions[0]["label"],
+                "confidence": round(predictions[0]["score"] * 100, 2)
+            }
         }
-    }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
 
 
 # --- Zero-shot vegetable detection endpoint ---
@@ -109,39 +129,43 @@ async def detect_vegetable(file: UploadFile = File(...)):
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image.")
     
-    zero_shot_pipeline = get_zero_shot_pipeline()
-    image = prepare_image(await file.read())
-    
-    # Vegetable type
-    veg_candidates = [f"a photo of {lbl}" for lbl in VEGETABLE_LABELS]
-    veg_result = zero_shot_pipeline(image, candidate_labels=veg_candidates, hypothesis_template="{}")
-    
-    top_label_raw = veg_result[0]["label"]
-    top_score = float(veg_result[0]["score"])
-    vegetable = top_label_raw.replace("a photo of ", "").strip()
-    
-    # Freshness estimation
-    freshness_candidates = [
-        f"a photo of fresh {vegetable}",
-        f"a photo of damaged {vegetable}",
-        f"a photo of rotten {vegetable}",
-        f"a photo of bruised {vegetable}"
-    ]
-    freshness_result = zero_shot_pipeline(image, candidate_labels=freshness_candidates, hypothesis_template="{}")
-    
-    fresh_score = max([r["score"] for r in freshness_result if "fresh" in r["label"].lower()] or [0])
-    damaged_score = max([r["score"] for r in freshness_result if "fresh" not in r["label"].lower()] or [0])
-    
-    freshness_status = "fresh" if fresh_score >= damaged_score else "damaged"
-    freshness_confidence = round(max(fresh_score, damaged_score) * 100, 2)
-    
-    return {
-        "success": True,
-        "filename": file.filename,
-        "vegetable": vegetable,
-        "vegetable_confidence": round(top_score * 100, 2),
-        "freshness": {"status": freshness_status, "confidence": freshness_confidence}
-    }
+    try:
+        zero_shot_pipeline = get_zero_shot_pipeline()
+        image_data = await file.read()
+        image = prepare_image(image_data)
+        
+        # Vegetable type
+        veg_candidates = [f"a photo of {lbl}" for lbl in VEGETABLE_LABELS]
+        veg_result = zero_shot_pipeline(image, candidate_labels=veg_candidates, hypothesis_template="{}")
+        
+        top_label_raw = veg_result[0]["label"]
+        top_score = float(veg_result[0]["score"])
+        vegetable = top_label_raw.replace("a photo of ", "").strip()
+        
+        # Freshness estimation
+        freshness_candidates = [
+            f"a photo of fresh {vegetable}",
+            f"a photo of damaged {vegetable}",
+            f"a photo of rotten {vegetable}",
+            f"a photo of bruised {vegetable}"
+        ]
+        freshness_result = zero_shot_pipeline(image, candidate_labels=freshness_candidates, hypothesis_template="{}")
+        
+        fresh_score = max([r["score"] for r in freshness_result if "fresh" in r["label"].lower()] or [0])
+        damaged_score = max([r["score"] for r in freshness_result if "fresh" not in r["label"].lower()] or [0])
+        
+        freshness_status = "fresh" if fresh_score >= damaged_score else "damaged"
+        freshness_confidence = round(max(fresh_score, damaged_score) * 100, 2)
+        
+        return {
+            "success": True,
+            "filename": file.filename,
+            "vegetable": vegetable,
+            "vegetable_confidence": round(top_score * 100, 2),
+            "freshness": {"status": freshness_status, "confidence": freshness_confidence}
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error detecting vegetable: {str(e)}")
 
 
 # --- Top prediction only endpoint ---
@@ -152,16 +176,20 @@ async def classify_image_top_only(file: UploadFile = File(...)):
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image.")
     
-    image = prepare_image(await file.read())
-    predictions = classifier(image, top_k=1)
-    
-    return {
-        "success": True,
-        "filename": file.filename,
-        "label": predictions[0]["label"],
-        "confidence": round(predictions[0]["score"] * 100, 2),
-        "score": round(predictions[0]["score"], 4)
-    }
+    try:
+        image_data = await file.read()
+        image = prepare_image(image_data)
+        predictions = classifier(image, top_k=1)
+        
+        return {
+            "success": True,
+            "filename": file.filename,
+            "label": predictions[0]["label"],
+            "confidence": round(predictions[0]["score"] * 100, 2),
+            "score": round(predictions[0]["score"], 4)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
 
 
 if __name__ == "__main__":
