@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: image-classification-api
+    runtime: python
+    plan: starter
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: TRANSFORMERS_CACHE
+        value: /opt/render/project/.cache
+      - key: HF_HOME
+        value: /opt/render/project/.cache
+    healthCheckPath: /health
+    autoDeploy: true

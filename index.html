@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Veggie Detector</title>
+    <style>
+        :root {
+            --green-50: #f2fbf6;
+            --green-100: #e7f7ee;
+            --green-200: #c8efd8;
+            --green-300: #a5e5c0;
+            --green-400: #7dd3a7;
+            --green-500: #4fd08e;
+            --green-600: #34b87a;
+            --green-700: #2a9d6f;
+            --accent-peach: #ffd8c2;
+            --accent-lilac: #e9d7ff;
+            --accent-yellow: #fff3b0;
+            --text-900: #1f2937;
+            --text-600: #64748b;
+            --ring: rgba(52, 184, 122, 0.35);
+            --shadow: 0 20px 50px rgba(42, 157, 111, 0.15);
+            --radius-xl: 20px;
+            --radius-lg: 16px;
+            --radius-md: 12px;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: radial-gradient(1200px 800px at 10% 10%, var(--green-100), transparent),
+                        radial-gradient(1000px 700px at 90% 20%, var(--accent-lilac), transparent),
+                        linear-gradient(135deg, var(--green-50), var(--green-100));
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: linear-gradient(180deg, #ffffff, var(--green-50));
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow);
+            max-width: 720px;
+            width: 100%;
+            padding: 32px;
+            border: 1px solid var(--green-100);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            font-size: 34px;
+            color: var(--text-900);
+            margin-bottom: 8px;
+            letter-spacing: -0.02em;
+        }
+
+        .header .emoji {
+            font-size: 52px;
+            margin-bottom: 8px;
+            filter: drop-shadow(0 4px 12px rgba(0,0,0,0.1));
+        }
+
+        .header p {
+            color: var(--text-600);
+            font-size: 16px;
+        }
+
+        .upload-area {
+            border: 2.5px dashed var(--green-300);
+            border-radius: var(--radius-lg);
+            padding: 48px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            background: linear-gradient(180deg, var(--green-50), #ffffff);
+            margin-bottom: 24px;
+        }
+
+        .upload-area:hover {
+            border-color: var(--green-500);
+            background: var(--green-50);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(42, 157, 111, 0.12);
+        }
+
+        .upload-area.dragover {
+            border-color: var(--green-600);
+            background: var(--green-100);
+            transform: scale(1.01);
+        }
+
+        .upload-icon {
+            font-size: 56px;
+            margin-bottom: 14px;
+        }
+
+        .upload-text {
+            font-size: 18px;
+            color: var(--green-700);
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .upload-subtext {
+            font-size: 14px;
+            color: var(--text-600);
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .preview-container {
+            display: none;
+            margin-bottom: 20px;
+        }
+
+        .preview-container.active {
+            display: block;
+        }
+
+        .image-preview {
+            width: 100%;
+            max-height: 360px;
+            object-fit: contain;
+            border-radius: var(--radius-md);
+            margin-bottom: 16px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+            border: 1px solid var(--green-100);
+        }
+
+        .results {
+            display: none;
+        }
+
+        .results.active {
+            display: block;
+        }
+
+        .results-header {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-900);
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .prediction-item {
+            margin-bottom: 12px;
+            animation: slideIn 0.3s ease forwards;
+            opacity: 0;
+        }
+
+        @keyframes slideIn {
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .prediction-item:nth-child(1) { animation-delay: 0.1s; }
+        .prediction-item:nth-child(2) { animation-delay: 0.2s; }
+        .prediction-item:nth-child(3) { animation-delay: 0.3s; }
+        .prediction-item:nth-child(4) { animation-delay: 0.4s; }
+        .prediction-item:nth-child(5) { animation-delay: 0.5s; }
+
+        .prediction-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 15px;
+        }
+
+        .label-text {
+            font-weight: 600;
+            color: var(--text-900);
+            text-transform: capitalize;
+        }
+
+        .label-confidence {
+            font-weight: 700;
+            color: var(--green-700);
+        }
+
+        .confidence-bar {
+            height: 10px;
+            background: var(--green-100);
+            border-radius: 999px;
+            overflow: hidden;
+            border: 1px solid var(--green-200);
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--green-400) 0%, var(--green-600) 100%);
+            border-radius: 999px;
+            transition: width 0.6s ease;
+            width: 0;
+        }
+
+        .top-prediction {
+            background: linear-gradient(135deg, var(--green-400) 0%, var(--green-600) 100%);
+            color: white;
+            padding: 20px;
+            border-radius: var(--radius-md);
+            margin-bottom: 16px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(42, 157, 111, 0.25);
+        }
+
+        .top-prediction .medal {
+            font-size: 36px;
+            margin-bottom: 8px;
+        }
+
+        .top-prediction .label {
+            font-size: 24px;
+            font-weight: 800;
+            margin-bottom: 4px;
+            text-transform: capitalize;
+            letter-spacing: -0.01em;
+        }
+
+        .top-prediction .confidence {
+            font-size: 16px;
+            opacity: 0.95;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 32px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--green-500);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: var(--green-700);
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .error {
+            display: none;
+            background: #fff3f3;
+            border: 2px solid #ffd2d2;
+            color: #b42318;
+            padding: 14px;
+            border-radius: var(--radius-md);
+            margin-bottom: 14px;
+        }
+
+        .error.active {
+            display: block;
+        }
+
+        .btn-reset {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, var(--green-500) 0%, var(--green-700) 100%);
+            color: white;
+            border: none;
+            border-radius: 999px;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            margin-top: 16px;
+            box-shadow: 0 10px 30px rgba(42, 157, 111, 0.2);
+        }
+
+        .btn-reset:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 34px rgba(42, 157, 111, 0.28);
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 22px;
+            padding-top: 16px;
+            border-top: 1px dashed var(--green-200);
+            color: var(--text-600);
+            font-size: 14px;
+        }
+
+        .footer a {
+            color: var(--green-700);
+            text-decoration: none;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="emoji" aria-hidden="true">🥕🍅🥬</div>
+            <h1>Veggie Detector</h1>
+            <p>Upload a vegetable photo to identify its name and freshness</p>
+        </div>
+
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">🥕</div>
+            <div class="upload-text">Drop your image here</div>
+            <div class="upload-subtext">or click to browse</div>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+
+        <div class="error" id="error"></div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div class="loading-text">Analyzing image...</div>
+        </div>
+
+        <div class="preview-container" id="previewContainer">
+            <img id="imagePreview" class="image-preview" alt="Preview">
+        </div>
+
+        <div class="results" id="results">
+            <div class="top-prediction" id="topPrediction"></div>
+            
+            <div class="results-header">
+                <span>🍃</span>
+                <span>Details</span>
+            </div>
+            <div id="predictions"></div>
+
+            <button class="btn-reset" onclick="reset()">
+                🔄 Classify Another Image
+            </button>
+        </div>
+
+        <div class="footer">
+            Powered by <a href="https://huggingface.co/openai/clip-vit-base-patch32" target="_blank">CLIP ViT-B/32</a>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const previewContainer = document.getElementById('previewContainer');
+        const imagePreview = document.getElementById('imagePreview');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const predictions = document.getElementById('predictions');
+        const topPrediction = document.getElementById('topPrediction');
+        const errorDiv = document.getElementById('error');
+
+        // Click to upload
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        // File input change
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                showError('Please upload an image file (JPG, PNG, etc.)');
+                return;
+            }
+
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                imagePreview.src = e.target.result;
+                previewContainer.classList.add('active');
+            };
+            reader.readAsDataURL(file);
+
+            // Upload and classify
+            classifyImage(file);
+        }
+
+        async function classifyImage(file) {
+            // Hide previous results and errors
+            results.classList.remove('active');
+            errorDiv.classList.remove('active');
+            uploadArea.style.display = 'none';
+            
+            // Show loading
+            loading.classList.add('active');
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch('/detect', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                displayResults(data);
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Failed to classify image. Please try again.');
+            } finally {
+                loading.classList.remove('active');
+            }
+        }
+
+        function displayResults(data) {
+            // Display detection summary
+            topPrediction.innerHTML = `
+                <div class="medal">🥗</div>
+                <div class="label">${data.vegetable}</div>
+                <div class="confidence">${data.vegetable_confidence}% confident</div>
+            `;
+
+            // Details: freshness
+            predictions.innerHTML = '';
+            const item = document.createElement('div');
+            item.className = 'prediction-item';
+            item.style.transform = 'translateX(-20px)';
+            const freshEmoji = data.freshness.status === 'fresh' ? '✅' : '⚠️';
+            item.innerHTML = `
+                <div class="prediction-label">
+                    <span class="label-text">${freshEmoji} Freshness</span>
+                    <span class="label-confidence">${data.freshness.status} · ${data.freshness.confidence}%</span>
+                </div>
+                <div class="confidence-bar">
+                    <div class="confidence-fill" style="width: 0%"></div>
+                </div>
+            `;
+            predictions.appendChild(item);
+            setTimeout(() => {
+                const fill = item.querySelector('.confidence-fill');
+                fill.style.width = data.freshness.confidence + '%';
+                fill.style.background = data.freshness.status === 'fresh' ? 'linear-gradient(90deg, #34d399 0%, #10b981 100%)' : 'linear-gradient(90deg, #f59e0b 0%, #ef4444 100%)';
+            }, 100);
+
+            results.classList.add('active');
+        }
+
+        function showError(message) {
+            errorDiv.textContent = '⚠️ ' + message;
+            errorDiv.classList.add('active');
+            uploadArea.style.display = 'block';
+        }
+
+        function reset() {
+            fileInput.value = '';
+            previewContainer.classList.remove('active');
+            results.classList.remove('active');
+            errorDiv.classList.remove('active');
+            uploadArea.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
