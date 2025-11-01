@@ -3,7 +3,7 @@ Memory-optimized Image Classification API using MobileNet and Lazy Zero-Shot CLI
 """
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from transformers import pipeline
 from PIL import Image
@@ -56,6 +56,11 @@ async def root():
         }
     }
 
+# --- Handle HEAD requests on root to prevent 405 errors ---
+@app.head("/")
+async def root_head():
+    return Response(status_code=200)
+
 # --- Startup: Load lightweight MobileNet only ---
 @app.on_event("startup")
 async def load_model():
@@ -63,7 +68,6 @@ async def load_model():
     print("🔄 Loading lightweight MobileNet classifier...")
     classifier = pipeline("image-classification", model="google/mobilenet_v2_1.0_224")
     print("✅ MobileNet loaded successfully!")
-
 
 # --- Lazy load zero-shot model only when first requested ---
 def get_zero_shot_pipeline():
@@ -74,7 +78,6 @@ def get_zero_shot_pipeline():
         print("✅ Zero-shot model loaded!")
     return zero_shot
 
-
 # --- Utility: Resize image to reduce memory usage ---
 def prepare_image(image_bytes: bytes, max_size=224):
     image = Image.open(io.BytesIO(image_bytes))
@@ -82,7 +85,6 @@ def prepare_image(image_bytes: bytes, max_size=224):
         image = image.convert("RGB")
     image.thumbnail((max_size, max_size))
     return image
-
 
 # --- Health check ---
 @app.get("/health")
@@ -92,7 +94,6 @@ async def health_check():
         "classifier_loaded": classifier is not None,
         "zero_shot_loaded": zero_shot is not None
     }
-
 
 # --- Image classification endpoint ---
 @app.post("/classify")
@@ -121,7 +122,6 @@ async def classify_image(file: UploadFile = File(...)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
-
 
 # --- Zero-shot vegetable detection endpoint ---
 @app.post("/detect")
@@ -167,7 +167,6 @@ async def detect_vegetable(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error detecting vegetable: {str(e)}")
 
-
 # --- Top prediction only endpoint ---
 @app.post("/classify-top")
 async def classify_image_top_only(file: UploadFile = File(...)):
@@ -190,7 +189,6 @@ async def classify_image_top_only(file: UploadFile = File(...)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
-
 
 if __name__ == "__main__":
     import uvicorn
